@@ -144,3 +144,23 @@ Postman (hosted)
 - Import `backend/postman/todo.postman_collection.json` and `backend/postman/todo.postman_environment.json`.
 - Set baseUrl to your public URL (e.g., `https://<apprunner-id>.<region>.awsapprunner.com`).
 - Run Register → Login → set `jwt` → CRUD requests. For cron, create a task and wait up to 5 minutes; check inbox/logs.
+
+## CI/CD: Build to ECR and deploy to EC2 (GitHub Actions)
+
+We included two workflows:
+
+- `.github/workflows/ecr-push.yml` — builds the Docker image from `backend/` and pushes to Amazon ECR on push to `main` or manual dispatch.
+- `.github/workflows/deploy-ec2-ssm.yml` — pulls the image on an EC2 instance (via AWS SSM), writes an env file from GitHub Secrets, downloads the region RDS CA bundle, and runs the container on port 80.
+
+Required GitHub repository secrets:
+- AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+- EC2_INSTANCE_ID
+- DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_DATABASE
+- JWT_SECRET
+- Optional: EMAIL_USER, EMAIL_PASS
+
+How to use:
+1. Set the secrets above in your GitHub repository settings.
+2. Run “Build and Push Docker image to ECR” (manually or push to main).
+3. Run “Deploy container to EC2 via SSM” with `imageTag=latest` (or a specific SHA).
+4. Visit `http://<EC2_PUBLIC_IP>/` and test with Postman.

@@ -1,0 +1,72 @@
+name: Deploy container to EC2 via SSM
+
+on:
+  workflow_dispatch:
+    inputs:
+      imageTag:
+        description: "Image tag to deploy (default: latest)"
+        required: false
+        default: "latest"
+
+env:
+  ECR_REPOSITORY: todo-backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Resolve ECR registry
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Send SSM run-command to instance
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.inputs.imageTag || 'latest' }}
+          EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          cat > commands.json << 'JSON'
+          {
+            "commands": [
+              "set -e",
+              "sudo dnf install -y docker || true",
+              "sudo systemctl enable --now docker",
+              "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}",
+              "sudo mkdir -p /home/ec2-user",
+              "cat > /home/ec2-user/backend.env <<'ENV'\nDB_HOST=${DB_HOST}\nDB_PORT=${DB_PORT}\nDB_USER=${DB_USER}\nDB_PASSWORD=${DB_PASSWORD}\nDB_DATABASE=${DB_DATABASE}\nDB_SSL=true\nDB_SSL_CA=/app/ap-south-1-bundle.pem\nJWT_SECRET=${JWT_SECRET}\nPORT=3000\nEMAIL_USER=${EMAIL_USER}\nEMAIL_PASS=${EMAIL_PASS}\nENV",
+              "sudo chmod 600 /home/ec2-user/backend.env",
+              "curl -fsSL https://truststore.pki.rds.amazonaws.com/ap-south-1/ap-south-1-bundle.pem -o /home/ec2-user/ap-south-1-bundle.pem",
+              "sudo docker rm -f todo-backend || true",
+              "sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}",
+              "sudo docker run -d --name todo-backend --restart unless-stopped --env-file /home/ec2-user/backend.env -p 80:3000 -v /home/ec2-user/ap-south-1-bundle.pem:/app/ap-south-1-bundle.pem:ro ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+            ],
+            "executionTimeout": "3600"
+          }
+          JSON
+
+          # Build parameter mapping for sensitive env from GitHub Secrets
+          PARAMS=$(jq -n --argjson file "$(cat commands.json)" '{"commands": $file.commands}')
+
+          aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy todo-backend container" \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --parameters file://commands.json \
+            --output text > /dev/null
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
