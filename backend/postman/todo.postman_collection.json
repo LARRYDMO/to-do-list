@@ -1,0 +1,143 @@
+{
+  "info": {
+    "name": "To-Do API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "To-Do API collection: auth + tasks CRUD + notes for cron."
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "register" ] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"tester1@example.com\",\n  \"password\": \"Password123\"\n}" }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.token) { pm.environment.set('jwt', json.token); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": [ "{{baseUrl}}" ], "path": [ "api", "auth", "login" ] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"tester1@example.com\",\n  \"password\": \"Password123\"\n}" }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/tasks", "host": [ "{{baseUrl}}" ], "path": [ "api", "tasks" ] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"First task\",\n  \"description\": \"created via Postman\"\n}" }
+          },
+          "response": []
+        },
+        {
+          "name": "List My Tasks (auth)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{jwt}}" } ],
+            "url": { "raw": "{{baseUrl}}/api/tasks", "host": [ "{{baseUrl}}" ], "path": [ "api", "tasks" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "List All Tasks (public)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tasks/all", "host": [ "{{baseUrl}}" ], "path": [ "api", "tasks", "all" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Task by ID (auth)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{jwt}}" } ],
+            "url": { "raw": "{{baseUrl}}/api/tasks/{{taskId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "tasks", "{{taskId}}" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Task (auth)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/tasks/{{taskId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "tasks", "{{taskId}}" ] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Edited from Postman\"\n}" }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Task (auth)",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Authorization", "value": "Bearer {{jwt}}" } ],
+            "url": { "raw": "{{baseUrl}}/api/tasks/{{taskId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "tasks", "{{taskId}}" ] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cron Notes",
+      "item": [
+        {
+          "name": "Notes",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "https://example.invalid/notes", "host": [ "example", "invalid" ], "path": [ "notes" ] }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Create a task, wait up to 5 minutes to allow the cron job to run,",
+                  "// then check your email inbox or server logs for the cron notification.",
+                  "pm.test('Cron job note', function () { pm.expect(true).to.be.true; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "jwt", "value": "" },
+    { "key": "taskId", "value": "1" }
+  ]
+}
